@@ -124,18 +124,23 @@ def subjects():
 
 @app.route("/marks", methods=["GET", "POST"])
 def marks():
-    # Semester and section are selected once and remembered in the session.
+    # Semester, section, subject and date are remembered for continuous entry.
     if request.method == "GET" and request.args.get("clear") == "1":
         session.pop("marks_semester", None)
         session.pop("marks_section", None)
+        session.pop("marks_subject_id", None)
+        session.pop("marks_test_date", None)
         return redirect(url_for("marks"))
 
+    # Set the class once from the first load.
     if request.method == "GET" and request.args.get("semester") and request.args.get("section"):
         session["marks_semester"] = request.args["semester"]
         session["marks_section"] = request.args["section"]
 
     semester = session.get("marks_semester", "")
     section = session.get("marks_section", "")
+    selected_subject_id = str(session.get("marks_subject_id", ""))
+    selected_test_date = session.get("marks_test_date", "")
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -147,6 +152,8 @@ def marks():
             student_id = int(request.form["student_id"])
             subject_id = int(request.form["subject_id"])
             obtained = float(request.form["marks_obtained"])
+
+            # Keep the selected subject and date for the next student.
             test_name = request.form.get("test_name", "").strip() or None
             test_date = request.form.get("test_date") or None
             max_marks = float(request.form["max_marks"]) if request.form.get("max_marks") else None
@@ -162,10 +169,17 @@ def marks():
                 (student_id, subject_id, sub["subject_name"], test_name,
                  test_date, max_marks, obtained))
             conn.commit()
-            message = "Marks saved successfully. Select the next student and continue."
+
+            session["marks_subject_id"] = subject_id
+            session["marks_test_date"] = test_date or ""
+            selected_subject_id = str(subject_id)
+            selected_test_date = test_date or ""
+            message = "Marks saved. Student changed; Subject and Date remain selected."
         except Exception as e:
             conn.rollback()
             error = f"Could not save marks: {e}"
+            selected_subject_id = request.form.get("subject_id", selected_subject_id)
+            selected_test_date = request.form.get("test_date", selected_test_date)
 
     students = []
     subjects = []
@@ -174,6 +188,7 @@ def marks():
                        WHERE semester=%s AND section=%s ORDER BY usn""",
                     (semester, section))
         students = cur.fetchall()
+
         cur.execute("""SELECT * FROM subjects
                        WHERE semester=%s AND section=%s ORDER BY subject_name""",
                     (semester, section))
@@ -185,6 +200,8 @@ def marks():
     return render_template("marks.html",
                            students=students, subjects=subjects,
                            semester=semester, section=section,
+                           selected_subject_id=selected_subject_id,
+                           selected_test_date=selected_test_date,
                            message=message, error=error)
 @app.route("/report")
 def report():
