@@ -1,124 +1,67 @@
-<!doctype html>
-<html>
-<head>
-<title>Marks Entry</title>
-<style>
-body{font-family:Arial,sans-serif;margin:0;background:#f4f7fb;color:#24324a}
-.container{max-width:950px;margin:30px auto;padding:20px}
-.card{background:white;padding:25px;border-radius:16px;box-shadow:0 6px 24px #00000012;margin-bottom:20px}
-h1{margin-top:0}
-select,input,button{padding:10px;border-radius:8px;border:1px solid #ccd5e0;font-size:15px}
-select,input{min-width:220px}
-button{cursor:pointer;background:#315bea;color:white;border:0;font-weight:bold}
-.load{background:#7c3aed}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.alert{padding:12px;border-radius:10px;margin-bottom:15px}
-.success{background:#e7f8ed;color:#16723b}
-.error{background:#fdecec;color:#a22}
-.note{background:#eef4ff;padding:12px;border-radius:10px}
-@media(max-width:700px){.grid{grid-template-columns:1fr}.container{margin:10px;padding:10px}}
-</style>
-</head>
-<body>
-<div class="container">
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Marks Entry ✏️</h1><p>Load students and subjects once, then enter marks continuously.</p></div>
+</div>
+
+{% if message %}<div class="alert success">✓ {{ message }}</div>{% endif %}
+{% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+
+{% if not semester or not section %}
 <div class="card">
-<h1>📝 Individual Marks Entry</h1>
-<p><a href="/">Home</a> &nbsp; | &nbsp; <a href="/subjects">Subject Configuration</a></p>
-
-{% if message %}<div class="alert success">✓ {{message}}</div>{% endif %}
-{% if error %}<div class="alert error">{{error}}</div>{% endif %}
-
-<div class="note">
-<b>Step 1:</b> Select Semester and Section <b>once</b>. Students and subjects will load together.
-After that, you can enter marks for multiple students without selecting Semester/Section again.
+  <h2>Choose Class</h2>
+  <p class="muted">Select Semester and Section only once. The selection will be remembered.</p>
+  <form method="get" class="two-col">
+    <div><label>Semester</label>
+      <select name="semester" required>
+        <option value="">Select</option>
+        {% for n in range(1,9) %}<option value="{{n}}">Semester {{n}}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label>Section</label>
+      <select name="section" required>
+        <option value="">Select</option>
+        {% for s in ['A','B','C','D','E','F'] %}<option value="{{s}}">Section {{s}}</option>{% endfor %}
+      </select>
+    </div>
+    <div><button class="btn primary" type="submit">Load Students & Subjects</button></div>
+  </form>
+</div>
+{% else %}
+<div class="card class-banner">
+  <div><strong>Semester {{ semester }} — Section {{ section }}</strong><span>Students & subjects loaded ✓</span></div>
+  <a class="btn secondary" href="{{ url_for('marks', clear='1') }}">Change Semester / Section</a>
 </div>
 
-<form method="get" id="filterForm" style="margin-top:18px">
-<div class="grid">
-<div>
-<label><b>Semester</b></label><br>
-<select name="semester" required>
-<option value="">Select Semester</option>
-{% for n in range(1,9) %}
-<option value="{{n}}" {% if semester==n|string %}selected{% endif %}>Semester {{n}}</option>
-{% endfor %}
-</select>
-</div>
-<div>
-<label><b>Section</b></label><br>
-<select name="section" required>
-<option value="">Select Section</option>
-{% for s in ['A','B','C','D','E','F'] %}
-<option value="{{s}}" {% if section==s %}selected{% endif %}>Section {{s}}</option>
-{% endfor %}
-</select>
-</div>
-</div>
-<button class="load" type="submit" style="margin-top:16px">Load Students & Subjects</button>
-</form>
-</div>
-
-{% if semester and section %}
+{% if not students %}
+<div class="alert error">No students found for Semester {{semester}}, Section {{section}}.</div>
+{% elif not subjects %}
+<div class="alert error">No subjects configured for Semester {{semester}}, Section {{section}}. Add them in Subject Configuration first.</div>
+{% else %}
 <div class="card">
-<h2>Semester {{semester}} - Section {{section}}</h2>
-<p class="note">Students and subjects are loaded. Keep entering marks below. Your Semester and Section stay selected after every save.</p>
-
-{% if not students %}<div class="alert error">No students found for this Semester and Section.</div>{% endif %}
-{% if not subjects %}<div class="alert error">No subjects configured for this Semester and Section. Configure subjects first.</div>{% endif %}
-
-{% if students and subjects %}
-<form method="post">
-<input type="hidden" name="save_marks" value="1">
-<input type="hidden" name="semester" value="{{semester}}">
-<input type="hidden" name="section" value="{{section}}">
-
-<div class="grid">
-<div>
-<label><b>Student</b></label><br>
-<select name="student_id" required>
-<option value="">Select Student</option>
-{% for s in students %}
-<option value="{{s.id}}">{{s.usn}} - {{s.name}}</option>
-{% endfor %}
-</select>
-</div>
-
-<div>
-<label><b>Subject</b></label><br>
-<select name="subject_id" required>
-<option value="">Select Subject</option>
-{% for s in subjects %}
-<option value="{{s.id}}">{{s.subject_code or ''}} {{s.subject_name}}</option>
-{% endfor %}
-</select>
-</div>
-
-<div>
-<label><b>Test Name</b> <small>(Optional)</small></label><br>
-<input name="test_name" placeholder="Optional">
-</div>
-
-<div>
-<label><b>Test Date</b></label><br>
-<input type="date" name="test_date">
-</div>
-
-<div>
-<label><b>Max Marks</b> <small>(Optional)</small></label><br>
-<input type="number" step="0.01" name="max_marks" placeholder="Optional">
-</div>
-
-<div>
-<label><b>Marks Obtained</b></label><br>
-<input type="number" step="0.01" name="marks_obtained" required>
-</div>
-</div>
-
-<button type="submit" style="margin-top:20px">💾 Save Marks & Continue</button>
-</form>
-{% endif %}
+  <h2>Enter Marks</h2>
+  <form method="post">
+    <div class="two-col">
+      <div><label>Student</label>
+        <select name="student_id" required>
+          <option value="">Select Student</option>
+          {% for s in students %}<option value="{{s.id}}">{{s.usn}} — {{s.name}}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Subject</label>
+        <select name="subject_id" required>
+          <option value="">Select Subject</option>
+          {% for s in subjects %}<option value="{{s.id}}">{{s.subject_code or ''}} {{s.subject_name}}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Test Name <span>(Optional)</span></label><input name="test_name" placeholder="Optional"></div>
+      <div><label>Test Date</label><input type="date" name="test_date"></div>
+      <div><label>Max Marks <span>(Optional)</span></label><input type="number" step="0.01" name="max_marks" placeholder="Optional"></div>
+      <div><label>Marks Obtained</label><input type="number" step="0.01" name="marks_obtained" required></div>
+    </div>
+    <button class="btn primary" type="submit">💾 Save Marks & Continue</button>
+  </form>
 </div>
 {% endif %}
-</div>
-</body>
-</html>
+{% endif %}
+{% endblock %}

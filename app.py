@@ -124,21 +124,25 @@ def subjects():
 
 @app.route("/marks", methods=["GET", "POST"])
 def marks():
-    semester = request.values.get("semester")
-    section = request.values.get("section")
+    # Semester and section are selected once and remembered in the session.
+    if request.method == "GET" and request.args.get("clear") == "1":
+        session.pop("marks_semester", None)
+        session.pop("marks_section", None)
+        return redirect(url_for("marks"))
 
-    # Use the previous selection automatically.
-    if semester is None:
-        semester = session.get("marks_semester", "")
-    if section is None:
-        section = session.get("marks_section", "")
+    if request.method == "GET" and request.args.get("semester") and request.args.get("section"):
+        session["marks_semester"] = request.args["semester"]
+        session["marks_section"] = request.args["section"]
+
+    semester = session.get("marks_semester", "")
+    section = session.get("marks_section", "")
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     message = None
     error = None
 
-    if request.method == "POST" and request.form.get("save_marks") == "1":
+    if request.method == "POST":
         try:
             student_id = int(request.form["student_id"])
             subject_id = int(request.form["subject_id"])
@@ -158,20 +162,10 @@ def marks():
                 (student_id, subject_id, sub["subject_name"], test_name,
                  test_date, max_marks, obtained))
             conn.commit()
-
-            session["marks_semester"] = semester
-            session["marks_section"] = section
-            message = "Marks saved successfully. Select the next student and enter the next marks."
+            message = "Marks saved successfully. Select the next student and continue."
         except Exception as e:
             conn.rollback()
             error = f"Could not save marks: {e}"
-
-    elif request.method == "GET":
-        # Only a deliberate semester/section change updates the remembered selection.
-        if "semester" in request.args:
-            session["marks_semester"] = semester
-        if "section" in request.args:
-            session["marks_section"] = section
 
     students = []
     subjects = []
@@ -180,7 +174,6 @@ def marks():
                        WHERE semester=%s AND section=%s ORDER BY usn""",
                     (semester, section))
         students = cur.fetchall()
-
         cur.execute("""SELECT * FROM subjects
                        WHERE semester=%s AND section=%s ORDER BY subject_name""",
                     (semester, section))
@@ -190,15 +183,11 @@ def marks():
     conn.close()
 
     return render_template("marks.html",
-                           students=students,
-                           subjects=subjects,
-                           semester=semester,
-                           section=section,
-                           message=message,
-                           error=error)
+                           students=students, subjects=subjects,
+                           semester=semester, section=section,
+                           message=message, error=error)
 @app.route("/report")
 def report():
-    from datetime import date
     from collections import OrderedDict
 
     from_date = request.args.get("from_date", "")
@@ -210,16 +199,11 @@ def report():
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Populate the report subject dropdown from configured subjects.
-    if semester and section:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s AND section=%s ORDER BY subject_name", (semester, section))
-    elif semester:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s ORDER BY subject_name", (semester,))
-    elif section:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE section=%s ORDER BY subject_name", (section,))
-    else:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects ORDER BY subject_name")
-    subject_options = [r["subject_name"] for r in cur.fetchall()]
+    # Load configured subjects for the report dropdown.
+    cur.execute("""SELECT DISTINCT subject_name
+                   FROM subjects
+                   ORDER BY subject_name""")
+    subject_list = cur.fetchall()
 
     q = """SELECT s.usn, s.name, s.semester, s.section,
                   m.subject, m.test_date, m.marks_obtained
@@ -241,14 +225,14 @@ def report():
         q += " AND s.section=%s"
         params.append(section)
     if subject:
-        q += " AND m.subject ILIKE %s"
-        params.append("%" + subject + "%")
+        q += " AND m.subject=%s"
+        params.append(subject)
 
-    q += " ORDER BY s.semester,s.section,s.usn,m.test_date,m.subject"
+    q += " ORDER BY s.semester,s.section,s.usn,m.test_date"
     cur.execute(q, params)
     rows = cur.fetchall()
 
-    # One row per USN. Each date becomes a column.
+    # One row per USN; each date becomes a column.
     date_list = sorted({r["test_date"].isoformat() for r in rows if r["test_date"]})
     grouped = OrderedDict()
 
@@ -263,12 +247,12 @@ def report():
                 "dates": {}
             }
         d = r["test_date"].isoformat()
-        # If more than one mark exists for the same USN/date, show all marks.
-        old = grouped[key]["dates"].get(d)
         value = str(r["marks_obtained"])
+        old = grouped[key]["dates"].get(d)
         grouped[key]["dates"][d] = value if not old else old + " / " + value
 
     report_rows = list(grouped.values())
+
     cur.close()
     conn.close()
 
@@ -276,12 +260,12 @@ def report():
         "report.html",
         rows=report_rows,
         dates=date_list,
+        subjects=subject_list,
         from_date=from_date,
         to_date=to_date,
         semester=semester,
         section=section,
-        subject=subject,
-        subject_options=subject_options
+        subject=subject
     )
 
 if __name__=="__main__":
