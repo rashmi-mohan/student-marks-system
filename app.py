@@ -122,65 +122,82 @@ def subjects():
     rows=cur.fetchall(); cur.close(); conn.close()
     return render_template("subjects.html",subjects=rows)
 
-@app.route("/marks", methods=["GET","POST"])
+@app.route("/marks", methods=["GET", "POST"])
 def marks():
-    conn=get_db()
-    cur=conn.cursor(cursor_factory=RealDictCursor)
-    if request.method=="POST":
+    semester = request.values.get("semester")
+    section = request.values.get("section")
+
+    # Use the previous selection automatically.
+    if semester is None:
+        semester = session.get("marks_semester", "")
+    if section is None:
+        section = session.get("marks_section", "")
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    message = None
+    error = None
+
+    if request.method == "POST" and request.form.get("save_marks") == "1":
         try:
-            student_id=int(request.form["student_id"])
-            subject_id=int(request.form["subject_id"])
-            obtained=float(request.form["marks_obtained"])
-            test_name=request.form.get("test_name","").strip() or None
-            test_date=request.form.get("test_date") or None
-            max_marks=float(request.form["max_marks"]) if request.form.get("max_marks") else None
-            semester=request.form.get("semester", "")
-            section=request.form.get("section", "")
-            cur.execute("SELECT subject_name FROM subjects WHERE id=%s",(subject_id,))
-            sub=cur.fetchone()
-            if not sub: raise ValueError("Invalid subject")
-            cur.execute("""INSERT INTO marks(student_id,subject_id,subject,test_name,test_date,max_marks,marks_obtained)
-                           VALUES(%s,%s,%s,%s,%s,%s,%s)""",
-                        (student_id,subject_id,sub["subject_name"],test_name,test_date,max_marks,obtained))
+            student_id = int(request.form["student_id"])
+            subject_id = int(request.form["subject_id"])
+            obtained = float(request.form["marks_obtained"])
+            test_name = request.form.get("test_name", "").strip() or None
+            test_date = request.form.get("test_date") or None
+            max_marks = float(request.form["max_marks"]) if request.form.get("max_marks") else None
+
+            cur.execute("SELECT subject_name FROM subjects WHERE id=%s", (subject_id,))
+            sub = cur.fetchone()
+            if not sub:
+                raise ValueError("Invalid subject")
+
+            cur.execute("""INSERT INTO marks
+                (student_id, subject_id, subject, test_name, test_date, max_marks, marks_obtained)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                (student_id, subject_id, sub["subject_name"], test_name,
+                 test_date, max_marks, obtained))
             conn.commit()
-            # Remember the selected semester and section for the next marks entry.
+
             session["marks_semester"] = semester
             session["marks_section"] = section
-            cur.close(); conn.close()
-            return redirect(url_for("marks"))
+            message = "Marks saved successfully. Select the next student and enter the next marks."
         except Exception as e:
             conn.rollback()
-            cur.close(); conn.close()
-            return f"Could not save marks: {e}",400
+            error = f"Could not save marks: {e}"
 
-    # Reuse the last selected semester/section unless the user explicitly changes it.
-    semester=request.args.get("semester")
-    section=request.args.get("section")
-    if semester is None:
-        semester=session.get("marks_semester", "")
-    else:
-        session["marks_semester"]=semester
-    if section is None:
-        section=session.get("marks_section", "")
-    else:
-        session["marks_section"]=section
+    elif request.method == "GET":
+        # Only a deliberate semester/section change updates the remembered selection.
+        if "semester" in request.args:
+            session["marks_semester"] = semester
+        if "section" in request.args:
+            session["marks_section"] = section
 
-    students=[]
-    subjects=[]
+    students = []
+    subjects = []
     if semester and section:
-        cur.execute("SELECT * FROM students WHERE semester=%s AND section=%s ORDER BY usn",
-                    (semester,section))
-        students=cur.fetchall()
-        cur.execute("SELECT * FROM subjects WHERE semester=%s AND section=%s ORDER BY subject_name",
-                    (semester,section))
-        subjects=cur.fetchall()
-    cur.close(); conn.close()
-    return render_template("marks.html",students=students,subjects=subjects,
-                           semester=semester,section=section)
+        cur.execute("""SELECT * FROM students
+                       WHERE semester=%s AND section=%s ORDER BY usn""",
+                    (semester, section))
+        students = cur.fetchall()
 
+        cur.execute("""SELECT * FROM subjects
+                       WHERE semester=%s AND section=%s ORDER BY subject_name""",
+                    (semester, section))
+        subjects = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return render_template("marks.html",
+                           students=students,
+                           subjects=subjects,
+                           semester=semester,
+                           section=section,
+                           message=message,
+                           error=error)
 @app.route("/report")
 def report():
-    from datetime import date
     from collections import OrderedDict
 
     from_date = request.args.get("from_date", "")
@@ -192,16 +209,11 @@ def report():
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Populate the report subject dropdown from configured subjects.
-    if semester and section:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s AND section=%s ORDER BY subject_name", (semester, section))
-    elif semester:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s ORDER BY subject_name", (semester,))
-    elif section:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE section=%s ORDER BY subject_name", (section,))
-    else:
-        cur.execute("SELECT DISTINCT subject_name FROM subjects ORDER BY subject_name")
-    subject_options = [r["subject_name"] for r in cur.fetchall()]
+    # Load configured subjects for the report dropdown.
+    cur.execute("""SELECT DISTINCT subject_name
+                   FROM subjects
+                   ORDER BY subject_name""")
+    subject_list = cur.fetchall()
 
     q = """SELECT s.usn, s.name, s.semester, s.section,
                   m.subject, m.test_date, m.marks_obtained
@@ -223,14 +235,14 @@ def report():
         q += " AND s.section=%s"
         params.append(section)
     if subject:
-        q += " AND m.subject ILIKE %s"
-        params.append("%" + subject + "%")
+        q += " AND m.subject=%s"
+        params.append(subject)
 
-    q += " ORDER BY s.semester,s.section,s.usn,m.test_date,m.subject"
+    q += " ORDER BY s.semester,s.section,s.usn,m.test_date"
     cur.execute(q, params)
     rows = cur.fetchall()
 
-    # One row per USN. Each date becomes a column.
+    # One row per USN; each date becomes a column.
     date_list = sorted({r["test_date"].isoformat() for r in rows if r["test_date"]})
     grouped = OrderedDict()
 
@@ -245,12 +257,12 @@ def report():
                 "dates": {}
             }
         d = r["test_date"].isoformat()
-        # If more than one mark exists for the same USN/date, show all marks.
-        old = grouped[key]["dates"].get(d)
         value = str(r["marks_obtained"])
+        old = grouped[key]["dates"].get(d)
         grouped[key]["dates"][d] = value if not old else old + " / " + value
 
     report_rows = list(grouped.values())
+
     cur.close()
     conn.close()
 
@@ -258,12 +270,12 @@ def report():
         "report.html",
         rows=report_rows,
         dates=date_list,
+        subjects=subject_list,
         from_date=from_date,
         to_date=to_date,
         semester=semester,
         section=section,
-        subject=subject,
-        subject_options=subject_options
+        subject=subject
     )
 
 if __name__=="__main__":
