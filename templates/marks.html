@@ -1,1 +1,33 @@
-{% extends 'base.html' %}{% block content %}<div class="top"><div><div class="title">Marks Entry ✏️</div><div class="sub">Select semester and section to load only relevant students</div></div></div><div class="card"><form method="get"><div class="formgrid"><div class="field"><label>Semester</label><select name="semester" required><option value="">Select</option>{% for n in range(1,9) %}<option value="{{n}}" {% if semester==n|string %}selected{% endif %}>{{n}}</option>{% endfor %}</select></div><div class="field"><label>Section</label><select name="section" required><option value="">Select</option>{% for s in ['A','B','C','D','E','F'] %}<option value="{{s}}" {% if section==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select></div></div><br><button class="btn">Load Students & Subjects</button></form></div>{% if semester and section %}<div class="card" style="margin-top:18px"><form method="post"><div class="formgrid"><div class="field"><label>Student</label><select name="student_id" required>{% for s in students %}<option value="{{s.id}}">{{s.usn}} — {{s.name}}</option>{% endfor %}</select></div><div class="field"><label>Subject</label><select name="subject_id" required>{% for s in subjects %}<option value="{{s.id}}">{{s.subject_code or ''}} {{s.subject_name}}</option>{% endfor %}</select></div><div class="field"><label>Test Name <span class="sub">(optional)</span></label><input name="test_name"></div><div class="field"><label>Test Date</label><input type="date" name="test_date" required></div><div class="field"><label>Max Marks <span class="sub">(optional)</span></label><input type="number" step="0.01" name="max_marks"></div><div class="field"><label>Marks Obtained</label><input type="number" step="0.01" name="marks_obtained" required></div></div><br><button class="btn green">✓ Save Marks</button></form></div>{% endif %}{% endblock %}
+<!doctype html>
+<html><head><title>Marks Entry</title>
+<style>body{font-family:Arial;margin:25px}.box{padding:18px;border-radius:12px;border:1px solid #ddd;max-width:800px}label{font-weight:bold}select,input{padding:8px;margin:5px}button{padding:9px 16px}</style>
+</head><body>
+<h1>Individual Marks Entry</h1><p><a href="/">Home</a> | <a href="/subjects">Subject Configuration</a></p>
+<div class="box">
+<form method="get">
+<label>Semester</label>
+<select name="semester">
+<option value="">Select</option>
+{% for n in range(1,9) %}<option value="{{n}}" {% if semester==n|string %}selected{% endif %}>{{n}}</option>{% endfor %}
+</select>
+<label>Section</label>
+<select name="section">
+<option value="">Select</option>
+{% for s in ['A','B','C','D','E','F'] %}<option value="{{s}}" {% if section==s %}selected{% endif %}>{{s}}</option>{% endfor %}
+</select>
+<button>Load</button>
+</form>
+{% if semester and section %}
+<hr>
+<form method="post">
+<input type="hidden" name="semester" value="{{semester}}"><input type="hidden" name="section" value="{{section}}">
+<p><label>Student</label><br><select name="student_id" required><option value="">Select Student</option>{% for s in students %}<option value="{{s.id}}">{{s.usn}} - {{s.name}}</option>{% endfor %}</select></p>
+<p><label>Subject</label><br><select name="subject_id" required><option value="">Select Subject</option>{% for s in subjects %}<option value="{{s.id}}">{{s.subject_code or ''}} {{s.subject_name}}</option>{% endfor %}</select></p>
+<p><label>Test Name</label><br><input name="test_name" placeholder="Optional"></p>
+<p><label>Test Date</label><br><input type="date" name="test_date"></p>
+<p><label>Max Marks</label><br><input type="number" step="0.01" name="max_marks" placeholder="Optional"></p>
+<p><label>Marks Obtained</label><br><input type="number" step="0.01" name="marks_obtained" required></p>
+<button type="submit">Save Marks</button>
+</form>
+{% else %}<p>Select Semester and Section once. Your selection will be remembered for the next marks entry.</p>{% endif %}
+</div></body></html>

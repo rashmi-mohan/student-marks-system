@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, Response
+from flask import Flask, render_template, request, redirect, url_for, Response, session
 import os, csv, io
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-key")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_db():
@@ -133,6 +134,8 @@ def marks():
             test_name=request.form.get("test_name","").strip() or None
             test_date=request.form.get("test_date") or None
             max_marks=float(request.form["max_marks"]) if request.form.get("max_marks") else None
+            semester=request.form.get("semester", "")
+            section=request.form.get("section", "")
             cur.execute("SELECT subject_name FROM subjects WHERE id=%s",(subject_id,))
             sub=cur.fetchone()
             if not sub: raise ValueError("Invalid subject")
@@ -140,6 +143,9 @@ def marks():
                            VALUES(%s,%s,%s,%s,%s,%s,%s)""",
                         (student_id,subject_id,sub["subject_name"],test_name,test_date,max_marks,obtained))
             conn.commit()
+            # Remember the selected semester and section for the next marks entry.
+            session["marks_semester"] = semester
+            session["marks_section"] = section
             cur.close(); conn.close()
             return redirect(url_for("marks"))
         except Exception as e:
@@ -147,8 +153,18 @@ def marks():
             cur.close(); conn.close()
             return f"Could not save marks: {e}",400
 
-    semester=request.args.get("semester","")
-    section=request.args.get("section","")
+    # Reuse the last selected semester/section unless the user explicitly changes it.
+    semester=request.args.get("semester")
+    section=request.args.get("section")
+    if semester is None:
+        semester=session.get("marks_semester", "")
+    else:
+        session["marks_semester"]=semester
+    if section is None:
+        section=session.get("marks_section", "")
+    else:
+        session["marks_section"]=section
+
     students=[]
     subjects=[]
     if semester and section:
@@ -175,6 +191,17 @@ def report():
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Populate the report subject dropdown from configured subjects.
+    if semester and section:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s AND section=%s ORDER BY subject_name", (semester, section))
+    elif semester:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s ORDER BY subject_name", (semester,))
+    elif section:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE section=%s ORDER BY subject_name", (section,))
+    else:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects ORDER BY subject_name")
+    subject_options = [r["subject_name"] for r in cur.fetchall()]
 
     q = """SELECT s.usn, s.name, s.semester, s.section,
                   m.subject, m.test_date, m.marks_obtained
@@ -235,7 +262,8 @@ def report():
         to_date=to_date,
         semester=semester,
         section=section,
-        subject=subject
+        subject=subject,
+        subject_options=subject_options
     )
 
 if __name__=="__main__":
