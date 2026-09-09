@@ -1,102 +1,18 @@
 <!doctype html>
-<html>
-<head>
-<title>Date Based Marks Report</title>
-<style>
-body{font-family:Arial,sans-serif;margin:0;background:#f4f7fb;color:#24324a}
-.container{max-width:1200px;margin:25px auto;padding:20px}
-.card{background:white;padding:22px;border-radius:16px;box-shadow:0 6px 24px #00000012}
-h1{margin-top:0}
-.filter{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
-label{font-weight:bold}
-select,input,button{padding:10px;border-radius:8px;border:1px solid #ccd5e0;font-size:14px}
-select{min-width:190px}
-button{background:#315bea;color:white;border:0;font-weight:bold;cursor:pointer}
-table{border-collapse:collapse;width:100%;margin-top:20px;background:white}
-th,td{border:1px solid #d7dee8;padding:9px;text-align:center}
-th{background:#eef4ff;white-space:nowrap}
-.note{margin-top:15px;padding:12px;background:#eef4ff;border-radius:10px}
-@media(max-width:700px){.container{padding:10px}.filter{display:block}.filter>div{margin-bottom:10px}table{font-size:12px}}
-</style>
-</head>
-<body>
-<div class="container">
-<div class="card">
-<h1>📊 Date Based Marks Report</h1>
-<p><a href="/">Home</a> &nbsp; | &nbsp; <a href="/marks">Marks Entry</a></p>
-
-<form method="get" class="filter">
-<div>
-<label>From Date</label><br>
-<input type="date" name="from_date" value="{{from_date}}">
-</div>
-<div>
-<label>To Date</label><br>
-<input type="date" name="to_date" value="{{to_date}}">
-</div>
-<div>
-<label>Semester <small>(Optional)</small></label><br>
-<select name="semester">
-<option value="">All Semesters</option>
-{% for n in range(1,9) %}
-<option value="{{n}}" {% if semester==n|string %}selected{% endif %}>Semester {{n}}</option>
-{% endfor %}
-</select>
-</div>
-<div>
-<label>Section <small>(Optional)</small></label><br>
-<select name="section">
-<option value="">All Sections</option>
-{% for s in ['A','B','C','D','E','F'] %}
-<option value="{{s}}" {% if section==s %}selected{% endif %}>Section {{s}}</option>
-{% endfor %}
-</select>
-</div>
-<div>
-<label>Subject <small>(Optional)</small></label><br>
-<select name="subject">
-<option value="">All Subjects</option>
-{% for s in subjects %}
-<option value="{{s.subject_name}}" {% if subject==s.subject_name %}selected{% endif %}>
-{{s.subject_name}}
-</option>
-{% endfor %}
-</select>
-</div>
-<div>
+<html><head><title>Date Based Marks Report</title>
+<style>body{font-family:Arial;margin:25px}table{border-collapse:collapse;margin-top:20px}th,td{border:1px solid #999;padding:8px;text-align:center}th{white-space:nowrap}</style>
+</head><body>
+<h1>Date Based Marks Report</h1><p><a href="/">Home</a> | <a href="/marks">Marks Entry</a></p>
+<form method="get">
+<label>From Date:</label><input type="date" name="from_date" value="{{from_date}}">
+<label>To Date:</label><input type="date" name="to_date" value="{{to_date}}">
+<label>Semester:</label><select name="semester"><option value="">All</option>{% for n in range(1,9) %}<option value="{{n}}" {% if semester==n|string %}selected{% endif %}>{{n}}</option>{% endfor %}</select>
+<label>Section:</label><select name="section"><option value="">All</option>{% for s in ['A','B','C','D','E','F'] %}<option value="{{s}}" {% if section==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select>
+<label>Subject:</label>
+<select name="subject"><option value="">All Subjects</option>{% for s in subject_options %}<option value="{{s}}" {% if subject==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select>
 <button type="submit">Generate Report</button>
-</div>
 </form>
-
-<div class="note">
-<strong>Report format:</strong> One row per USN. Each selected date appears as a separate column.
-</div>
-
-{% if dates %}
-<table>
-<tr>
-<th>USN</th>
-<th>Student Name</th>
-<th>Semester</th>
-<th>Section</th>
-{% for d in dates %}<th>{{d}}</th>{% endfor %}
-</tr>
-{% for r in rows %}
-<tr>
-<td>{{r.usn}}</td>
-<td>{{r.name}}</td>
-<td>{{r.semester}}</td>
-<td>{{r.section}}</td>
-{% for d in dates %}<td>{{r.dates.get(d,'—')}}</td>{% endfor %}
-</tr>
-{% endfor %}
-</table>
-{% elif from_date or to_date or semester or section or subject %}
-<p><strong>No marks found for the selected filters.</strong></p>
-{% else %}
-<p>Select your date range and optional filters, then click <strong>Generate Report</strong>.</p>
-{% endif %}
-</div>
-</div>
-</body>
-</html>
+{% if dates %}<table><tr><th>USN</th><th>Student Name</th><th>Semester</th><th>Section</th>{% for d in dates %}<th>{{d}}</th>{% endfor %}</tr>
+{% for r in rows %}<tr><td>{{r.usn}}</td><td>{{r.name}}</td><td>{{r.semester}}</td><td>{{r.section}}</td>{% for d in dates %}<td>{{r.dates.get(d,'—')}}</td>{% endfor %}</tr>{% endfor %}</table>
+{% elif from_date or to_date or semester or section or subject %}<p>No marks found for the selected filters.</p>{% else %}<p>Select filters and click Generate Report.</p>{% endif %}
+</body></html>

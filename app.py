@@ -198,6 +198,7 @@ def marks():
                            error=error)
 @app.route("/report")
 def report():
+    from datetime import date
     from collections import OrderedDict
 
     from_date = request.args.get("from_date", "")
@@ -209,11 +210,16 @@ def report():
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Load configured subjects for the report dropdown.
-    cur.execute("""SELECT DISTINCT subject_name
-                   FROM subjects
-                   ORDER BY subject_name""")
-    subject_list = cur.fetchall()
+    # Populate the report subject dropdown from configured subjects.
+    if semester and section:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s AND section=%s ORDER BY subject_name", (semester, section))
+    elif semester:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE semester=%s ORDER BY subject_name", (semester,))
+    elif section:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects WHERE section=%s ORDER BY subject_name", (section,))
+    else:
+        cur.execute("SELECT DISTINCT subject_name FROM subjects ORDER BY subject_name")
+    subject_options = [r["subject_name"] for r in cur.fetchall()]
 
     q = """SELECT s.usn, s.name, s.semester, s.section,
                   m.subject, m.test_date, m.marks_obtained
@@ -235,14 +241,14 @@ def report():
         q += " AND s.section=%s"
         params.append(section)
     if subject:
-        q += " AND m.subject=%s"
-        params.append(subject)
+        q += " AND m.subject ILIKE %s"
+        params.append("%" + subject + "%")
 
-    q += " ORDER BY s.semester,s.section,s.usn,m.test_date"
+    q += " ORDER BY s.semester,s.section,s.usn,m.test_date,m.subject"
     cur.execute(q, params)
     rows = cur.fetchall()
 
-    # One row per USN; each date becomes a column.
+    # One row per USN. Each date becomes a column.
     date_list = sorted({r["test_date"].isoformat() for r in rows if r["test_date"]})
     grouped = OrderedDict()
 
@@ -257,12 +263,12 @@ def report():
                 "dates": {}
             }
         d = r["test_date"].isoformat()
-        value = str(r["marks_obtained"])
+        # If more than one mark exists for the same USN/date, show all marks.
         old = grouped[key]["dates"].get(d)
+        value = str(r["marks_obtained"])
         grouped[key]["dates"][d] = value if not old else old + " / " + value
 
     report_rows = list(grouped.values())
-
     cur.close()
     conn.close()
 
@@ -270,12 +276,12 @@ def report():
         "report.html",
         rows=report_rows,
         dates=date_list,
-        subjects=subject_list,
         from_date=from_date,
         to_date=to_date,
         semester=semester,
         section=section,
-        subject=subject
+        subject=subject,
+        subject_options=subject_options
     )
 
 if __name__=="__main__":
