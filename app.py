@@ -149,14 +149,26 @@ def marks():
 
     if request.method == "POST":
         try:
-            student_id = int(request.form["student_id"])
-            subject_id = int(request.form["subject_id"])
-            obtained = float(request.form["marks_obtained"])
+            student_value = request.form.get("student_id", "").strip()
+            subject_value = request.form.get("subject_id", "").strip()
+            obtained_value = request.form.get("marks_obtained", "").strip()
+
+            if not student_value:
+                raise ValueError("Please select a student.")
+            if not subject_value:
+                raise ValueError("Please select a subject.")
+            if not obtained_value:
+                raise ValueError("Please enter marks obtained.")
+
+            student_id = int(student_value)
+            subject_id = int(subject_value)
+            obtained = float(obtained_value)
 
             # Keep the selected subject and date for the next student.
             test_name = request.form.get("test_name", "").strip() or None
             test_date = request.form.get("test_date") or None
-            max_marks = float(request.form["max_marks"]) if request.form.get("max_marks") else None
+            max_marks_value = request.form.get("max_marks", "").strip()
+            max_marks = float(max_marks_value) if max_marks_value else None
 
             cur.execute("SELECT subject_name FROM subjects WHERE id=%s", (subject_id,))
             sub = cur.fetchone()

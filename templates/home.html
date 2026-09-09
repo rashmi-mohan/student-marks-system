@@ -1,1 +1,14 @@
-{% extends 'base.html' %}{% block content %}<div class="top"><div><div class="title">Welcome 👋</div><div class="sub">Student Marks Management Dashboard</div></div><a class="btn" href="/marks">+ Enter Marks</a></div><div class="grid"><div class="card"><div class="icon">👨‍🎓</div><div class="metric">Students</div><div class="sub">Add or bulk upload students</div><br><a class="btn alt" href="/students">Open</a></div><div class="card"><div class="icon">📚</div><div class="metric">Subjects</div><div class="sub">Configure by semester & section</div><br><a class="btn alt" href="/subjects">Configure</a></div><div class="card"><div class="icon">✏️</div><div class="metric">Marks</div><div class="sub">Semester → Section → Student</div><br><a class="btn" href="/marks">Enter Marks</a></div><div class="card"><div class="icon">📊</div><div class="metric">Reports</div><div class="sub">One row per USN, dates as columns</div><br><a class="btn alt" href="/report">View Report</a></div></div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Dashboard - Student Marks{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Welcome 👋</h1><p>Student Marks Management Dashboard</p></div>
+  <a class="btn primary" href="/marks">✏️ Enter Marks</a>
+</div>
+<div class="two-col">
+  <div class="card"><h2>👨‍🎓 Students</h2><p class="muted">Add students individually or upload them in bulk with Semester and Section.</p><div class="form-actions"><a class="btn secondary" href="/students">Open Students</a><a class="btn secondary" href="/bulk-upload">Bulk Upload</a></div></div>
+  <div class="card"><h2>📚 Subjects</h2><p class="muted">Configure subjects for each Semester and Section. These subjects appear in Marks Entry and Reports.</p><div class="form-actions"><a class="btn secondary" href="/subjects">Configure Subjects</a></div></div>
+  <div class="card"><h2>✏️ Marks Entry</h2><p class="muted">Load a class once, then enter marks continuously. Subject and Date stay selected after saving.</p><div class="form-actions"><a class="btn primary" href="/marks">Start Marks Entry</a></div></div>
+  <div class="card"><h2>📊 Date Report</h2><p class="muted">Generate one row per USN with dates as columns and filter by subject.</p><div class="form-actions"><a class="btn secondary" href="/report">Open Report</a></div></div>
+</div>
+{% endblock %}
